@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>LRHT — Main</title>
+<meta name="description" content="Left or Right? An interactive world map and quiz that shows which side of the road every country drives on.">
+
+<!-- Favicon -->
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<meta name="theme-color" content="#161616">
+<link rel="manifest" href="manifest.webmanifest">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://kaiteki.github.io/lrht/">
+<meta property="og:title" content="Left or Right? — World Traffic Sides">
+<meta property="og:description" content="Interactive map and quiz on which side of the road every country drives on.">
+<meta property="og:image" content="https://kaiteki.github.io/lrht/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="600">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Left or Right? — World Traffic Sides">
+<meta name="twitter:description" content="Interactive map and quiz on which side of the road every country drives on.">
+<meta name="twitter:image" content="https://kaiteki.github.io/lrht/og-image.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"
+        integrity="sha512-M7nHCiNUOwFt6Us3r8alutZLm9qMt4s9951uo8jqO4UwJ1hziseL6O3ndFyigx6+LREfZqnhHxYjKRJ8ZQ69DQ=="
+        crossorigin="anonymous"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="dark">
+
+<div id="themeWipe" aria-hidden="true"></div>
+<div id="screenBackdrop" aria-hidden="true"></div>
+<canvas id="particleField" aria-hidden="true"></canvas>
+
+<div id="leaveConfirm" role="alertdialog" aria-modal="true" aria-labelledby="leaveConfirmTitle" aria-describedby="leaveConfirmText">
+  <div class="confirm-card">
+    <div class="confirm-icon" aria-hidden="true">⚠️</div>
+    <div id="leaveConfirmTitle" class="confirm-title">Leave the quiz?</div>
+    <div id="leaveConfirmText" class="confirm-text">Your progress will be reset</div>
+    <div class="confirm-actions">
+      <button class="btn btn-yellow" onclick="closeLeaveConfirm()">Stay</button>
+      <button class="btn confirm-leave-btn" onclick="confirmLeaveQuiz()">Leave</button>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+
+  <!-- MENU -->
+  <div id="menu" class="screen active">
+    <div style="font-size:28px; margin:2px 0 4px;">🌍</div>
+    <h1><span class="hl-left">Left</span>/<span class="hl-right">Right</span>-Hand Traffic</h1>
+    <div class="subtitle">Guess which side of the road each country drives on</div>
+    <div class="menu-buttons">
+      <button class="btn btn-green" onclick="showScreen('mapScreen')">🗺️ World map</button>
+      <button class="btn btn-yellow" onclick="showScreen('quizScreen'); startQuiz();">💡 Take the quiz</button>
+    </div>
+    <div id="recordLine">Record: <b id="recordVal">0</b> / <span id="totalVal">174</span></div>
+
+    <div id="dayNightWidget" onclick="toggleTheme()" role="button" tabindex="0"
+         aria-label="Toggle dark/light theme" title="Toggle dark/light theme"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleTheme();}">
+      <div class="earth" aria-hidden="true"></div>
+      <span class="orbit-icon" id="sunIcon">☀️</span>
+      <span class="orbit-icon" id="moonIcon">🌙</span>
+    </div>
+
+  </div>
+
+  <!-- MAP -->
+  <div id="mapScreen" class="screen">
+    <button class="back" onclick="showScreen('menu')">← Back</button>
+    <div class="legend">
+      <span class="legend-item"><span class="dot green"></span>Green — left-hand traffic</span>
+      <span class="legend-item"><span class="dot yellow"></span>Yellow — right-hand traffic</span>
+    </div>
+    <div id="mapHint">Scroll/pinch to zoom and drag to pan</div>
+    <div id="mapWrapOuter">
+      <div id="mapWrap">
+        <div id="mapLoading">Loading world map…</div>
+        <svg id="worldSvg" viewBox="0 0 1000 520" style="display:none"></svg>
+        <div id="mapError" class="error-box">
+          <div class="error-icon">⚠️</div>
+          <div class="error-title">Couldn't load the map</div>
+          <div class="error-detail">Check your internet connection and try again</div>
+          <button class="retry-btn" onclick="buildMap()">Retry</button>
+        </div>
+      </div>
+    </div>
+    <div id="mapControlsRow">
+      <div id="searchWrap">
+        <div id="searchBox">
+          <span class="search-icon">🔍</span>
+          <input id="countrySearch" type="text" placeholder="Search a country…" autocomplete="off" spellcheck="false">
+          <button id="searchClear" type="button" title="Clear" aria-label="Clear">✕</button>
+        </div>
+        <div id="searchSuggestions">
+          <div id="suggestionsScroll"></div>
+          <div id="suggestionsThumbTrack"><div id="suggestionsThumb"></div></div>
+        </div>
+      </div>
+      <div class="zoom-controls">
+        <button onclick="zoomBy(1.35)">+</button>
+        <button onclick="zoomBy(1/1.35)">−</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUIZ -->
+  <div id="quizScreen" class="screen">
+    <button class="back" onclick="handleQuizBack()">← Back</button>
+    <div class="quiz-stats">Streak: <b id="streak">0</b> &nbsp;|&nbsp; Record: <b id="best">0</b> / <span id="totalVal2">174</span></div>
+
+    <div id="quizCardWrap">
+      <div id="quizCard">
+        <img id="flagImg" class="flag-img" alt="flag">
+        <div id="countryName"></div>
+        <div id="miniMapWrap"><svg id="miniMap" viewBox="0 0 300 150"></svg></div>
+        <div class="quiz-question">Guess this country's traffic side</div>
+        <div class="answers">
+          <button class="btn btn-green" onclick="answer('L')">← Left-hand</button>
+          <button class="btn btn-yellow" onclick="answer('R')">Right-hand →</button>
+        </div>
+      </div>
+      <div id="quizLoading" aria-hidden="true">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      </div>
+    </div>
+
+    <div id="resultCard" style="display:none">
+      <div id="resultText"></div>
+      <button class="btn btn-yellow" onclick="startQuiz()">Start over</button>
+    </div>
+
+    <div id="quizError" class="error-box">
+      <div class="error-icon">⚠️</div>
+      <div class="error-title">Couldn't load the quiz</div>
+      <div class="error-detail">Check your internet connection and try again</div>
+      <button class="retry-btn" onclick="startQuiz()">Retry</button>
+    </div>
+
+  </div>
+
+</div>
+
+<div class="watermark">made by kaiteki ''</div>
+
+<script src="countries.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
